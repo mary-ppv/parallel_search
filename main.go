@@ -27,11 +27,11 @@ func generateRandomElements(size int) []int {
 // maximum returns the maximum number of elements.
 func maximum(data []int) int {
 	if len(data) == 0 {
-		panic("empty slice")
+		return 0
 	}
 
-	max := 0
-	for i := 0; i < len(data); i++ {
+	max := data[0]
+	for i := range data {
 		if data[i] > max {
 			max = data[i]
 		}
@@ -42,43 +42,37 @@ func maximum(data []int) int {
 // maxChunks returns the maximum number of elements in a chunks.
 func maxChunks(data []int) int {
 	if len(data) == 0 {
-		panic("empty slice")
+		return 0
 	}
 
-	chunkSize := len(data) / CHUNKS
-	if chunkSize == 0 {
-		return maximum(data)
-	}
+	n := len(data)
+	chunkSize := n / CHUNKS
 
 	var wg sync.WaitGroup
-	results := make(chan int, CHUNKS)
+	var mu sync.Mutex
+	results := make([]int, 0, CHUNKS)
 
 	for i := 0; i < CHUNKS; i++ {
 		start := i * chunkSize
-		end := start + chunkSize
-		if i == CHUNKS-1 {
-			end = len(data)
-
-			wg.Add(1)
-			go func(slice []int) {
-				defer wg.Done()
-				results <- maximum(slice)
-			}(data[start:end])
+		end := (i + 1) * chunkSize
+		if end > n {
+			end = n
 		}
 
-		go func() {
-			wg.Wait()
-			close(results)
-		}()
-	}
-	max := <-results
-	for res := range results {
-		if res > max {
-			max = res
-		}
+		wg.Add(1)
+		go func(slice []int) {
+			defer wg.Done()
+			localMax := maximum(slice)
+
+			mu.Lock()
+			results = append(results, localMax)
+			mu.Unlock()
+		}(data[start:end])
 	}
 
-	return max
+	wg.Wait()
+
+	return maximum(results)
 }
 
 func main() {
